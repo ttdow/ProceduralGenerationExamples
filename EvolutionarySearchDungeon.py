@@ -5,6 +5,9 @@ import math
 import random
 import time
 from datetime import datetime
+import numpy as np
+import matplotlib.pyplot as plt
+import sys
 
 class Link():
     def __init__(self, row, col, imgPath):
@@ -201,6 +204,198 @@ class Pathfinder():
 
 # -----------------------------------------------------------------------------
 
+# Perturb the copied dungeons slightly to induce diversity in the population
+def mutateDungeons(dungeons, bad_dungeons):
+    
+    #print("mutateDungeons()")
+    dungeons, fitness_list, _, _ = evaluateDungeons(dungeons)
+    dungeons, sorted_list = sortDungeons(dungeons, fitness_list)
+
+    # Mutate the replacement dungeons
+    for i in range(0, int(len(sorted_list) / 2)):
+        for j in range(0, 10):
+            for k in range(0, 10):
+               
+                #print(sorted_list[-i-1][0])
+
+                coin_toss = random.randint(0, 1)
+                if coin_toss:
+
+                    roll_dice = random.randint(0, 19)
+                    if roll_dice > 17:
+                        dungeons[sorted_list[-i-1][0]][j][k] = 5 # Treasure
+                    elif roll_dice > 15:
+                        dungeons[sorted_list[-i-1][0]][j][k] = 4 # Monster
+                    elif roll_dice > 7:
+                        dungeons[sorted_list[-i-1][0]][j][k] = 1 # Wall
+                    else:
+                        dungeons[sorted_list[-i-1][0]][j][k] = 0 # Free space
+
+    #print("mutated")
+    #_, fitness_list, _, _ = evaluateDungeons(dungeons)
+                    
+        #new_dungeons.append(np.random.randint(6, size=(10, 10), dtype=np.uint8))
+
+    # Overwrite the bad dungeons with new dungeons
+    #for i in range(0, len(bad_dungeons)):
+        #dungeons[bad_dungeons[i]] = new_dungeons[i]
+
+    return dungeons
+
+# Replace the removed dungeons with copies of the best dungeons
+def reproduceDungeons(dungeons, good_dungeons, bad_dungeons):
+
+    #print("reproduceDungeons()")
+    _, fitness_list, _, _ = evaluateDungeons(dungeons)
+
+    for i in range(0, len(bad_dungeons)):
+        dungeons[bad_dungeons[i]] = dungeons[good_dungeons[i]]
+
+    return dungeons, bad_dungeons
+
+# Remove the worst lambda dungeons
+def cullDungeons(dungeons, fitness_list):
+
+    #print("cullDungeons()")
+    _, fitness_list, _, _ = evaluateDungeons(dungeons)
+
+    good_dungeons = []
+    bad_dungeons = []
+
+    half_len = int(len(fitness_list) / 2)
+
+    for i in range(0, half_len):
+        good_dungeons.append(fitness_list[i][0])
+    
+    for i in range(len(fitness_list) - half_len, len(fitness_list)):
+        bad_dungeons.append(fitness_list[i][0])
+
+    return dungeons, good_dungeons, bad_dungeons
+
+# Sort dungeons by fitness
+def sortDungeons(dungeons, fitness_list):
+
+    #print("sortDungeons()")
+    #_, fitness_list, _, _ = evaluateDungeons(dungeons)
+
+    sorted_list = sorted(fitness_list, key = lambda x: x[1], reverse=True)
+
+    return dungeons, sorted_list
+
+# Evaluation function for dungeons
+def evaluateDungeons(dungeons):
+
+    largest_fitness = 0
+    fitness_sum = 0
+    fitness_list = []
+    counter = 0
+
+    for dungeon in dungeons:
+        fitness = 0
+        unique, counts = np.unique(dungeon, return_counts=True)
+        
+        if len(unique) < 6:
+            fitness = -250
+        else:
+            if counts[2] > 1:
+                fitness -= 100
+            
+            if counts[3] > 1:
+                fitness -= 100
+
+            if counts[0] > counts[1]:
+                fitness += 25
+
+            if counts[4] > counts[5] or counts[5] > counts[4]:
+                fitness -= 25
+            else:
+                fitness += 25
+
+        for i in range(0, dungeon.shape[0]-1):
+            for j in range(0, dungeon.shape[1]-1):
+                if dungeon[i, j] == 0 and dungeon[i, j+1] == 0:
+                    fitness += 5
+                elif dungeon[i,j] == 0 and dungeon[i+1, j] == 0:
+                    fitness += 5
+
+                if dungeon[i, j] == 1 and dungeon[i, j+1] == 1:
+                    fitness += 5
+                elif dungeon[i,j] == 1 and dungeon[i+1, j] == 1:
+                    fitness += 5
+
+                if dungeon[i, j] == 0 and \
+                dungeon[i, j+1] == 0 and \
+                dungeon[i+1, j] == 0 and \
+                dungeon[i+1,j+1] ==0:
+                    fitness += 50
+        
+        fitness_list.append((counter, fitness))
+        counter += 1
+        fitness_sum += fitness
+
+        if fitness > largest_fitness:
+            largest_fitness = fitness
+
+    avg_fitness = fitness_sum / 100
+    #print("Avg. Fitness of Dungeons: ", avg_fitness)
+
+    #print(largest_fitness)
+
+    return dungeons, fitness_list, avg_fitness, largest_fitness
+
+# TODO optional
+def shuffleDungeons():
+    print()
+
+def makeDungeon():
+    dim = 10
+    number = 100
+
+    # 0 = free space
+    # 1 = wall
+    # 2 = starting point
+    # 3 = exit
+    # 4 = monster
+    # 5 = treasure
+    dungeons = []
+
+    # Make 100 random 'dungeons'
+    for i in range(0, number):
+        dungeons.append(np.random.randint(6, size=(dim, dim), dtype=np.uint8))
+    
+    # For graphing progress of algorithm
+    avg_fitness_list = []
+    largest_fitness_list = []
+
+    for i in range(0, 100):
+        #print("Iteration: ", i)
+        dungeons, fitness_list, avg_fitness, largest_fitness = evaluateDungeons(dungeons)
+        dungeons, sorted_list = sortDungeons(dungeons, fitness_list)
+        dungeons, good_dungeons, bad_dungeons = cullDungeons(dungeons, sorted_list)
+        dungeons, bad_dungeons = reproduceDungeons(dungeons, good_dungeons, bad_dungeons)
+        dungeons = mutateDungeons(dungeons, bad_dungeons)
+        avg_fitness_list.append(avg_fitness)
+        largest_fitness_list.append(largest_fitness)
+
+    dungeons, fitness_list, avg_fitness, largest_fitness = evaluateDungeons(dungeons)
+    dungeons, sorted_list = sortDungeons(dungeons, fitness_list)
+
+    avg_fitness_list.append(avg_fitness)
+    largest_fitness_list.append(largest_fitness)
+
+    #print(sorted_list)
+
+    #plt.plot(largest_fitness_list)
+    #plt.show()
+
+    #plt.plot(avg_fitness_list)
+    #plt.show()
+
+    return dungeons[sorted_list[0][0]]
+
+    #np.set_printoptions(threshold=sys.maxsize)
+    #print(dungeons[sorted_list[0][0]])
+
 oldTime = time.time()
 
 # Start display
@@ -220,7 +415,12 @@ gannon = Gannon(9, 9, "enemy.jpg")
 
 bgd = pygame.image.load("grid.jpg")
 rock = pygame.image.load("rock.jpg")
+door = pygame.image.load("exit.jpg")
+chest = pygame.image.load("treasure.jpg")
 rocks = []
+chests = []
+mobs = []
+exit_pos = (9, 9)
 
 running = True
 doAStar = True
@@ -228,6 +428,22 @@ doAStar = True
 board = Board()
 path = Pathfinder(board.grid)
 
+dungeon_layout = makeDungeon()
+for i in range(0, 10):
+    for j in range(0, 10):
+        if dungeon_layout[i][j] == 1: # Wall
+            board.grid[i][j].blocked = True
+            rocks.append((i, j))
+        elif dungeon_layout[i][j] == 2: # Starting point
+            link.pos[0] = i
+            link.pos[1] = j
+        elif dungeon_layout[i][j] == 3: # Exit
+            exit_pos = (i, j)
+        elif dungeon_layout[i][j] == 4: # Monster
+            mobs.append((i, j))
+        elif dungeon_layout[i][j] == 5: # Treasure
+            chests.append((i, j))
+        
 # Main game loop
 while running:
 
@@ -244,9 +460,16 @@ while running:
         screen.blit(bgd, (0, 0))
         screen.blit(link.sprite, (link.pos[1] * 40, link.pos[0] * 40))
         screen.blit(gannon.sprite, (gannon.pos[1] * 40, gannon.pos[0] * 40))
+        screen.blit(door, (exit_pos[1] * 40, exit_pos[0] * 40))
+
+        for i in chests:
+            screen.blit(chest, (i[1] * 40, i[0] * 40))
 
         for i in rocks:
             screen.blit(rock, (i[1] * 40, i[0] * 40))
+
+        for i in mobs:
+            screen.blit(gannon.sprite, (i[1] * 40, i[0] * 40))
 
         pygame.display.flip()
 
