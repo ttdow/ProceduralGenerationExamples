@@ -239,8 +239,6 @@ while running:
     if (link.x, link.y) == (chest_pos):
         key = True
 
-    
-
     link.draw(attack_anim)
 
     if attack_anim > 0:
