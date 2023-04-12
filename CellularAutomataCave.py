@@ -2,7 +2,6 @@ import pygame
 from pygame import mixer
 
 import random
-from enum import Enum
 
 from win32api import GetSystemMetrics
 
